@@ -13,7 +13,6 @@ import (
 	"github.com/ChimeraCoder/anaconda"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/nats-io/stan.go"
-	"gopkg.in/ffmt.v1"
 
 	b64 "encoding/base64"
 )
@@ -35,17 +34,16 @@ func New(dao dao, c *config.Connection, n stan.Conn) *svc {
 	return &svc{dao, c.TwtClient, n, c.OauthClient, c.Upload}
 }
 
-var oke = new(chan *models.Message)
-
 func (s *svc) GetDMs(body *models.DMEvent) error {
 	for _, val := range body.DirectMessageEvents {
 
 		if (strings.Contains(val.Message.Data.Text, "-nem") || strings.Contains(val.Message.Data.Text, "-Nem") || strings.Contains(val.Message.Data.Text, "-NEM")) && val.Message.SenderID != "1215181869567725568" {
-			log.Printf("DM triggered body '%+v'", val.Message.Data.Text)
+			log.Println("Webhook Triggered")
 
 			payload := &models.Message{ID: time.Now().Format("20060102030405"), Message: val.Message.Data.Text}
 
 			if val.Message.Data.Attachment != nil {
+				log.Println("has media detected")
 				if val.Message.Data.Attachment.Media.Type == "video" || val.Message.Data.Attachment.Media.Type == "animated_gif" {
 					mediaID, err := s.uploadVideo(val.Message.Data.Attachment.Media.VideoInfo.Variants[0].URL)
 					if err != nil {
@@ -64,7 +62,7 @@ func (s *svc) GetDMs(body *models.DMEvent) error {
 				}
 
 			}
-			ffmt.Pjson(val.Message.Data)
+			//	ffmt.Pjson(val.Message.Data)
 			data, _ := json.Marshal(payload)
 			if err := s.stan.Publish(config.ChName, data); err != nil {
 				log.Print(err)
@@ -85,23 +83,23 @@ func (s *svc) SubsToTweetDMs() {
 			return
 		}
 
-		log.Printf("body '%+v'", body)
 		params := &twitter.StatusUpdateParams{Status: body.Message}
 		if len(body.MediaID) > 0 {
 			params.MediaIds = body.MediaID
 		} else {
 			params = nil
 		}
-		log.Printf("params '%+v'", params)
+		//	log.Printf("params '%+v'", params)
 		_, _, err := s.twtClient.Statuses.Update(body.Message, params)
 		if err != nil {
 			log.Print(err)
 		}
-		log.Printf("Dms Tweeted '%v'", body.Message)
+		log.Printf("Dms Tweeted '%+v'", body)
 		counter++
 		msg.Ack()
 
 		if counter == 20 {
+			log.Printf("Sleeping")
 			time.Sleep(5 * time.Minute)
 		}
 	}, stan.SetManualAckMode(), stan.DurableName("POST-DURABLE"))
