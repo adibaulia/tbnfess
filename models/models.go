@@ -16,7 +16,8 @@ type (
 	}
 
 	Message struct {
-		ID      string `json:"id"`
-		Message string `json:"message"`
+		ID      string  `json:"id"`
+		Message string  `json:"message"`
+		MediaID []int64 `json:"media_id"`
 	}
 )

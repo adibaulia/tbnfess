@@ -2,9 +2,11 @@ package config
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"time"
 
+	"github.com/ChimeraCoder/anaconda"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
 	"github.com/nats-io/nats.go"
@@ -28,8 +30,10 @@ var (
 
 type (
 	Connection struct {
-		TwtClient *twitter.Client
-		Nats      *nats.Conn
+		TwtClient   *twitter.Client
+		Nats        *nats.Conn
+		OauthClient *http.Client
+		Upload      *anaconda.TwitterApi
 	}
 )
 
@@ -42,6 +46,10 @@ func init() {
 	httpClient := config.Client(oauth1.NoContext, token)
 	// Twitter client
 	TwtClient := twitter.NewClient(httpClient)
+
+	anaconda.SetConsumerKey(CONSUMER_KEY)
+	anaconda.SetConsumerSecret(CONSUMER_KEY_SECRET)
+	up := anaconda.NewTwitterApi(ACCESS_TOKEN, ACCESS_SECRET)
 
 	opts := nats.GetDefaultOptions()
 	opts.Url = NATSURL
@@ -57,8 +65,10 @@ func init() {
 		panic(err)
 	}
 	instance = &Connection{
-		TwtClient: TwtClient,
-		Nats:      natsCon,
+		TwtClient:   TwtClient,
+		Nats:        natsCon,
+		OauthClient: httpClient,
+		Upload:      up,
 	}
 
 }

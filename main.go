@@ -21,7 +21,7 @@ func main() {
 		return
 	}
 
-	svc := services.New(nil, c.TwtClient, sc)
+	svc := services.New(nil, c, sc)
 	api.Router(e, svc)
 	svc.SubsToTweetDMs()
 
@@ -37,7 +37,7 @@ func main() {
 			return
 		}
 
-		svc := services.New(nil, c.TwtClient, sc)
+		svc := services.New(nil, c, sc)
 		svc.SubsToTweetDMs()
 	})
 
