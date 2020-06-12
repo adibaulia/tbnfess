@@ -38,21 +38,30 @@ func New(dao dao, c *config.Connection, n stan.Conn) *svc {
 var oke = new(chan *models.Message)
 
 func (s *svc) GetDMs(body *models.DMEvent) error {
-	ffmt.Pjson(&body)
 	for _, val := range body.DirectMessageEvents {
 
 		if (strings.Contains(val.Message.Data.Text, "-nem") || strings.Contains(val.Message.Data.Text, "-Nem") || strings.Contains(val.Message.Data.Text, "-NEM")) && val.Message.SenderID != "1215181869567725568" {
 			log.Printf("DM triggered body '%+v'", val.Message.Data.Text)
 
-			payload := &models.Message{ID: time.Now().Format("20060504030201"), Message: val.Message.Data.Text}
+			payload := &models.Message{ID: time.Now().Format("20060102030405"), Message: val.Message.Data.Text}
 
 			if val.Message.Data.Attachment != nil {
-				mediaID, err := s.uploadMedia(val.Message.Data.Attachment.Media.MediaURLHttps)
-				if err != nil {
-					log.Print(err)
+				if val.Message.Data.Attachment.Media.Type == "video" || val.Message.Data.Attachment.Media.Type == "animated_gif" {
+					mediaID, err := s.uploadVideo(val.Message.Data.Attachment.Media.VideoInfo.Variants[0].URL)
+					if err != nil {
+						return err
+					}
+
+					payload.MediaID = append(payload.MediaID, mediaID)
+					payload.Message = strings.ReplaceAll(payload.Message, val.Message.Data.Attachment.Media.URLEntity.URL, "")
+				} else {
+					mediaID, err := s.uploadMedia(val.Message.Data.Attachment.Media.MediaURLHttps)
+					if err != nil {
+						log.Print(err)
+					}
+					payload.MediaID = append(payload.MediaID, mediaID)
+					payload.Message = strings.ReplaceAll(payload.Message, val.Message.Data.Attachment.Media.URLEntity.URL, "")
 				}
-				payload.MediaID = append(payload.MediaID, mediaID)
-				payload.Message = strings.ReplaceAll(payload.Message, val.Message.Data.Attachment.Media.URLEntity.URL, "")
 
 			}
 			ffmt.Pjson(val.Message.Data)
@@ -99,23 +108,53 @@ func (s *svc) SubsToTweetDMs() {
 
 }
 
-func (s *svc) uploadMedia(url string) (int64, error) {
-
+func (s *svc) getMedia(url string) (string, int, error) {
 	resp, err := s.OauthClient.Get(url)
 	if err != nil {
-		return 0, err
+		return "", 0, err
 	}
 
 	defer resp.Body.Close()
 	bodyResp, _ := ioutil.ReadAll(resp.Body)
-	//buf := bytes.NewBuffer(bodyResp)
-	imgEnc := b64.StdEncoding.EncodeToString(bodyResp)
-	media, err := s.Upload.UploadMedia(imgEnc)
-	//log.Printf("media %+v\n", media)
+	encoded := b64.StdEncoding.EncodeToString(bodyResp)
+	return encoded, len(bodyResp), nil
+}
+
+func (s *svc) uploadMedia(url string) (int64, error) {
+
+	encoded, _, err := s.getMedia(url)
+	if err != nil {
+		return 0, err
+	}
+	media, err := s.Upload.UploadMedia(encoded)
 	if err != nil {
 		log.Printf("err %+v\n", err)
 		return 0, err
 	}
-	log.Printf("media %+v\n", media)
+	return media.MediaID, nil
+}
+
+func (s *svc) uploadVideo(url string) (int64, error) {
+	encoded, size, err := s.getMedia(url)
+	if err != nil {
+		return 0, err
+	}
+	chunkMed, err := s.Upload.UploadVideoInit(size, "video/mp4")
+	if err != nil {
+		log.Printf("log %+v\n", err)
+		return 0, err
+	}
+
+	err = s.Upload.UploadVideoAppend(chunkMed.MediaIDString, 0, encoded)
+	if err != nil {
+		log.Printf("log %+v\n", err)
+		return 0, err
+	}
+
+	media, err := s.Upload.UploadVideoFinalize(chunkMed.MediaIDString)
+	if err != nil {
+		log.Printf("log %+v\n", err)
+		return 0, err
+	}
 	return media.MediaID, nil
 }
