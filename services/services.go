@@ -142,7 +142,7 @@ func (s *svc) uploadVideo(url string) (int64, error) {
 		return 0, err
 	}
 
-	chunks := split(buf, 4000000)
+	chunks := split(buf, 30000)
 
 	var encodedChunks []string
 	for _, chunk := range chunks {
