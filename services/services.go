@@ -76,6 +76,7 @@ func (s *svc) GetDMs(body *models.DMEvent) error {
 func (s *svc) SubsToTweetDMs() {
 	var counter int
 	s.stan.Subscribe(config.ChName, func(msg *stan.Msg) {
+		log.Printf("Posting tweet")
 		var body models.Message
 		if err := json.Unmarshal(msg.Data, &body); err != nil {
 			log.Printf("[SubsToPOST]: error message: %v", err)
@@ -115,6 +116,8 @@ func (s *svc) getMedia(url string) (string, int, error) {
 	defer resp.Body.Close()
 	bodyResp, _ := ioutil.ReadAll(resp.Body)
 	encoded := b64.StdEncoding.EncodeToString(bodyResp)
+	log.Printf("Media encoded to base64 with size '%v'", len(bodyResp))
+
 	return encoded, len(bodyResp), nil
 }
 
