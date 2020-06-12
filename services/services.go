@@ -107,26 +107,27 @@ func (s *svc) SubsToTweetDMs() {
 
 }
 
-func (s *svc) getMedia(url string) (string, int, error) {
+func (s *svc) getMedia(url string) ([]byte, error) {
 	resp, err := s.OauthClient.Get(url)
 	if err != nil {
-		return "", 0, err
+		return nil, err
 	}
 
 	defer resp.Body.Close()
 	bodyResp, _ := ioutil.ReadAll(resp.Body)
-	encoded := b64.StdEncoding.EncodeToString(bodyResp)
-	log.Printf("Media encoded to base64 with size '%v'", len(bodyResp))
 
-	return encoded, len(bodyResp), nil
+	return bodyResp, nil
 }
 
 func (s *svc) uploadMedia(url string) (int64, error) {
 
-	encoded, _, err := s.getMedia(url)
+	buf, err := s.getMedia(url)
 	if err != nil {
 		return 0, err
 	}
+
+	encoded := b64.StdEncoding.EncodeToString(buf)
+	log.Printf("Media encoded to base64 with size '%v'", len(buf))
 	media, err := s.Upload.UploadMedia(encoded)
 	if err != nil {
 		log.Printf("err %+v\n", err)
@@ -136,20 +137,33 @@ func (s *svc) uploadMedia(url string) (int64, error) {
 }
 
 func (s *svc) uploadVideo(url string) (int64, error) {
-	encoded, size, err := s.getMedia(url)
+	buf, err := s.getMedia(url)
 	if err != nil {
 		return 0, err
 	}
-	chunkMed, err := s.Upload.UploadVideoInit(size, "video/mp4")
+
+	chunks := split(buf, 4000000)
+
+	var encodedChunks []string
+	for _, chunk := range chunks {
+		encoded := b64.StdEncoding.EncodeToString(chunk)
+		encodedChunks = append(encodedChunks, encoded)
+	}
+
+	chunkMed, err := s.Upload.UploadVideoInit(len(buf), "video/mp4")
 	if err != nil {
 		log.Printf("log %+v\n", err)
 		return 0, err
 	}
 
-	err = s.Upload.UploadVideoAppend(chunkMed.MediaIDString, 0, encoded)
-	if err != nil {
-		log.Printf("log %+v\n", err)
-		return 0, err
+	for i, enc := range encodedChunks {
+
+		err = s.Upload.UploadVideoAppend(chunkMed.MediaIDString, i, enc)
+		if err != nil {
+			log.Printf("log %+v\n", err)
+			return 0, err
+		}
+
 	}
 
 	media, err := s.Upload.UploadVideoFinalize(chunkMed.MediaIDString)
@@ -158,4 +172,17 @@ func (s *svc) uploadVideo(url string) (int64, error) {
 		return 0, err
 	}
 	return media.MediaID, nil
+}
+
+func split(buf []byte, lim int) [][]byte {
+	var chunk []byte
+	chunks := make([][]byte, 0, len(buf)/lim+1)
+	for len(buf) >= lim {
+		chunk, buf = buf[:lim], buf[lim:]
+		chunks = append(chunks, chunk)
+	}
+	if len(buf) > 0 {
+		chunks = append(chunks, buf[:len(buf)])
+	}
+	return chunks
 }
