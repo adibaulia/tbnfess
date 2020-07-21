@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -40,7 +41,7 @@ func (s *svc) GetDMs(body *models.DMEvent) error {
 		if (strings.Contains(val.Message.Data.Text, "-nem") || strings.Contains(val.Message.Data.Text, "-Nem") || strings.Contains(val.Message.Data.Text, "-NEM")) && val.Message.SenderID != "1215181869567725568" {
 			log.Println("Webhook Triggered")
 
-			payload := &models.Message{ID: time.Now().Format("20060102030405"), Message: val.Message.Data.Text}
+			payload := &models.Message{ID: time.Now().Format("20060102150405"), Message: val.Message.Data.Text, SenderID: val.Message.SenderID}
 
 			if val.Message.Data.Attachment != nil {
 				log.Println("has media detected")
@@ -88,10 +89,24 @@ func (s *svc) TweetDMs() {
 		params = nil
 	}
 	//	log.Printf("params '%+v'", params)
-	_, _, err := s.twtClient.Statuses.Update(body.Message, params)
+	twitt, _, err := s.twtClient.Statuses.Update(body.Message, params)
 	if err != nil {
 		log.Print(err)
 	}
+	s.twtClient.DirectMessages.EventsNew(&twitter.DirectMessageEventsNewParams{
+		Event: &twitter.DirectMessageEvent{
+			Type: "message_create",
+			Message: &twitter.DirectMessageEventMessage{
+				Target: &twitter.DirectMessageTarget{
+					RecipientID: body.SenderID,
+				},
+				Data: &twitter.DirectMessageData{
+					Text: fmt.Sprintf("Menfess-em wes ke tweet nang tweet iku, suwun yo lur https://twitter.com/tbnfess_/status/%v", twitt.ID),
+				},
+			},
+		},
+	})
+
 	log.Printf("Dms Tweeted '%+v'", body)
 }
 
