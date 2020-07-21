@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
+	"tbnfess/pkg/queue"
 
 	"github.com/ChimeraCoder/anaconda"
 	"github.com/dghubble/go-twitter/twitter"
@@ -24,8 +24,9 @@ var (
 	NATSURL string = os.Getenv("NATSURL")
 	// CLUSTERID cluster id for nats server
 	CLUSTERID string = os.Getenv("NATSCLUSTER")
-
-	ChName string = "ANTRIAN"
+	PORT      string = os.Getenv("PORT")
+	ChName    string = "ANTRIAN"
+	Q         queue.Queue
 )
 
 type (
@@ -51,22 +52,24 @@ func init() {
 	anaconda.SetConsumerSecret(CONSUMER_KEY_SECRET)
 	up := anaconda.NewTwitterApi(ACCESS_TOKEN, ACCESS_SECRET)
 
-	opts := nats.GetDefaultOptions()
-	opts.Url = NATSURL
-	opts.MaxPingsOut = 10000
-	opts.MaxReconnect = 10000
-	opts.ReconnectWait = 30 * time.Second
-	opts.PingInterval = 5 * time.Second
-	opts.Verbose = true
-	opts.AllowReconnect = true
+	// opts := nats.GetDefaultOptions()
+	// opts.Url = NATSURL
+	// opts.MaxPingsOut = 10000
+	// opts.MaxReconnect = 10000
+	// opts.ReconnectWait = 30 * time.Second
+	// opts.PingInterval = 5 * time.Second
+	// opts.Verbose = true
+	// opts.AllowReconnect = true
+	// opts.User = "ruser"
+	// opts.Password = "T0pS3cr3t"
 
-	natsCon, err := opts.Connect()
-	if err != nil {
-		panic(err)
-	}
+	// natsCon, err := opts.Connect()
+	// if err != nil {
+	// 	panic(err)
+	// }
 	instance = &Connection{
-		TwtClient:   TwtClient,
-		Nats:        natsCon,
+		TwtClient: TwtClient,
+		//Nats:        natsCon,
 		OauthClient: httpClient,
 		Upload:      up,
 	}

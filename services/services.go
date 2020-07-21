@@ -64,48 +64,69 @@ func (s *svc) GetDMs(body *models.DMEvent) error {
 			}
 			//	ffmt.Pjson(val.Message.Data)
 			data, _ := json.Marshal(payload)
-			if err := s.stan.Publish(config.ChName, data); err != nil {
-				log.Print(err)
-			}
-
+			// if err := s.stan.Publish(config.ChName, data); err != nil {
+			// 	log.Print(err)
+			// }
+			config.Q.Enqueue(data)
 		}
 	}
 	return nil
 }
 
-func (s *svc) SubsToTweetDMs() {
-	var counter int
-	s.stan.Subscribe(config.ChName, func(msg *stan.Msg) {
-		log.Printf("Posting tweet")
-		var body models.Message
-		if err := json.Unmarshal(msg.Data, &body); err != nil {
-			log.Printf("[SubsToPOST]: error message: %v", err)
-			msg.Ack()
-			return
-		}
+func (s *svc) TweetDMs() {
+	var body models.Message
+	item := config.Q.Dequeue()
+	if err := json.Unmarshal(item, &body); err != nil {
+		log.Printf("[SubsToPOST]: error message: %v", err)
+		return
+	}
 
-		params := &twitter.StatusUpdateParams{Status: body.Message}
-		if len(body.MediaID) > 0 {
-			params.MediaIds = body.MediaID
-		} else {
-			params = nil
-		}
-		//	log.Printf("params '%+v'", params)
-		_, _, err := s.twtClient.Statuses.Update(body.Message, params)
-		if err != nil {
-			log.Print(err)
-		}
-		log.Printf("Dms Tweeted '%+v'", body)
-		counter++
-		msg.Ack()
-
-		if counter == 20 {
-			log.Printf("Sleeping")
-			time.Sleep(5 * time.Minute)
-		}
-	}, stan.SetManualAckMode(), stan.DurableName("POST-DURABLE"))
-
+	params := &twitter.StatusUpdateParams{Status: body.Message}
+	if len(body.MediaID) > 0 {
+		params.MediaIds = body.MediaID
+	} else {
+		params = nil
+	}
+	//	log.Printf("params '%+v'", params)
+	_, _, err := s.twtClient.Statuses.Update(body.Message, params)
+	if err != nil {
+		log.Print(err)
+	}
+	log.Printf("Dms Tweeted '%+v'", body)
 }
+
+// func (s *svc) SubsToTweetDMs() {
+// 	var counter int
+// 	s.stan.Subscribe(config.ChName, func(msg *stan.Msg) {
+// 		log.Printf("Posting tweet")
+// 		var body models.Message
+// 		if err := json.Unmarshal(msg.Data, &body); err != nil {
+// 			log.Printf("[SubsToPOST]: error message: %v", err)
+// 			msg.Ack()
+// 			return
+// 		}
+
+// 		params := &twitter.StatusUpdateParams{Status: body.Message}
+// 		if len(body.MediaID) > 0 {
+// 			params.MediaIds = body.MediaID
+// 		} else {
+// 			params = nil
+// 		}
+// 		//	log.Printf("params '%+v'", params)
+// 		_, _, err := s.twtClient.Statuses.Update(body.Message, params)
+// 		if err != nil {
+// 			log.Print(err)
+// 		}
+// 		log.Printf("Dms Tweeted '%+v'", body)
+// 		counter++
+// 		msg.Ack()
+
+// 		if counter == 20 {
+// 			log.Printf("Sleeping")
+// 			time.Sleep(5 * time.Minute)
+// 		}
+// 	}, stan.SetManualAckMode(), stan.DurableName("POST-DURABLE"))
+// }
 
 func (s *svc) getMedia(url string) ([]byte, error) {
 	resp, err := s.OauthClient.Get(url)
